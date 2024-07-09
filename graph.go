@@ -1,6 +1,6 @@
 package main
 
-func generatePackagesGraph(gofiles []*goFile) {
+func generatePackagesGraph(gofiles []*goFile) map[string][]*goPackage {
 	depsMap := make(map[string][]*goPackage)
 	for _, goFile := range gofiles {
 		packageName := goFile.goPackage.name
@@ -17,4 +17,6 @@ func generatePackagesGraph(gofiles []*goFile) {
 			}
 		}
 	}
+
+	return depsMap
 }

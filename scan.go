@@ -19,17 +19,18 @@ type goPackage struct {
 	deps []*goPackage
 }
 
-func scanPackages(path string, projectName string) {
+func scanPackages(path string, projectName string) (map[string][]*goPackage, error) {
 	goFilesPaths, _ := getGoFiles(path)
 	gofiles := make([]*goFile, 0)
 	for _, path := range goFilesPaths {
 		f, err := parseGoFile(path, projectName)
-		if err == nil {
-			gofiles = append(gofiles, f)
+		if err != nil {
+			return nil, err
 		}
+		gofiles = append(gofiles, f)
 	}
 
-	generatePackagesGraph(gofiles)
+	return generatePackagesGraph(gofiles), nil
 }
 
 func parseGoFile(path string, projectName string) (*goFile, error) {
@@ -48,13 +49,12 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 	depsPackages := make([]*goPackage, 0)
 
 	for scanner.Scan() {
-		// Process the line
 		line := scanner.Text()
 		line = strings.TrimSpace(line)
 
 		lineNotEmpty := line != ""
 		packageLine := strings.HasPrefix(line, "package")
-		importProjectPackageLine := func(l string) bool { return strings.HasPrefix(l, "\""+projectName) }
+		isImportProjectPackageLine := func(l string) bool { return strings.HasPrefix(l, "\""+projectName) }
 		commentLine := strings.HasPrefix(line, "//")
 
 		if commentLine {
@@ -75,9 +75,9 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 				name: projectName + "/" + packageName,
 			}
 		} else if singleImportLine {
-			importedPackageName := strings.Split(line, " ")[1]
-			isProjectPackageImport := importProjectPackageLine(importedPackageName)
-			if isProjectPackageImport {
+			parts := strings.Split(line, " ")
+			importedPackageName := parts[len(parts)-1]
+			if isImportProjectPackageLine(importedPackageName) {
 				importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
 				importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
 				depsPackages = append(depsPackages, &goPackage{
@@ -85,23 +85,19 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 				})
 			}
 		} else if foundImportLines && lineNotEmpty {
-			if importProjectPackageLine(line) {
+			// parse multi line imports
+			if isImportProjectPackageLine(line) {
+				importedPackageName := line
 
-				importedPackageName := strings.TrimPrefix(line, "\"")
+				if strings.Contains(line, " ") {
+					// import alias
+					importedPackageName = strings.Split(line, " ")[1]
+				}
+				importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
 				importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
 				depsPackages = append(depsPackages, &goPackage{
 					name: importedPackageName,
 				})
-			} else if strings.Contains(line, " ") {
-				importedPackageName := strings.Split(line, " ")[1]
-				isProjectPackageImport := importProjectPackageLine(importedPackageName)
-				if isProjectPackageImport {
-					importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
-					importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
-					depsPackages = append(depsPackages, &goPackage{
-						name: importedPackageName,
-					})
-				}
 			}
 		} else if strings.HasPrefix(line, "import") {
 			// multi line imports
