@@ -1,4 +1,4 @@
-GO_SOURCES := $(shell find . -type f -name "*.go")
+GO_SOURCES := $(shell find . -path ./test_samples -prune -o -type f -name "*.go" -print)
 RUN_ARGS :=
 
 .PHONY: build

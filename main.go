@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -21,7 +20,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("===> %s\n", projectName)
 	scanPackages(projectPath, projectName)
 }
 

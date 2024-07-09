@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 type goFile struct {
@@ -20,17 +21,31 @@ type goPackage struct {
 }
 
 func scanPackages(path string, projectName string) (map[string][]*goPackage, error) {
-	goFilesPaths, _ := getGoFiles(path)
-	gofiles := make([]*goFile, 0)
-	for _, path := range goFilesPaths {
-		f, err := parseGoFile(path, projectName)
-		if err != nil {
-			return nil, err
-		}
-		gofiles = append(gofiles, f)
+	goFilesPaths, err := getGoFiles(path)
+	if err != nil {
+		return nil, err
 	}
 
+	gofiles := make([]*goFile, 0)
+
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(len(goFilesPaths))
+
+	for _, path := range goFilesPaths {
+		go func(goFilePath string) {
+			f, _ := parseGoFile(goFilePath, projectName)
+			gofiles = append(gofiles, f)
+			waitGroup.Done()
+		}(path)
+	}
+
+	waitGroup.Wait()
 	return generatePackagesGraph(gofiles), nil
+}
+
+func removeQuotesFromPkg(pkg string) string {
+	pkg = strings.TrimPrefix(pkg, "\"")
+	return strings.TrimSuffix(pkg, "\"")
 }
 
 func parseGoFile(path string, projectName string) (*goFile, error) {
@@ -56,51 +71,40 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 		packageLine := strings.HasPrefix(line, "package")
 		isImportProjectPackageLine := func(l string) bool { return strings.HasPrefix(l, "\""+projectName) }
 		commentLine := strings.HasPrefix(line, "//")
+		singleImportLine := strings.HasPrefix(line, "import") && !strings.Contains(line, "(")
 
 		if commentLine {
 			continue
 		}
 
-		singleImportLine := strings.HasPrefix(line, "import") && !strings.Contains(line, "(")
-
-		if lineNotEmpty && !foundImportLines && !strings.HasPrefix(line, "package") &&
-			!strings.HasPrefix(line, "import") {
-			break
-		} else if foundImportLines && strings.HasPrefix(line, ")") {
-			foundImportLines = false
-			break
-		} else if packageLine {
+		if packageLine {
 			packageName := strings.Split(line, " ")[1]
 			gFile.goPackage = &goPackage{
 				name: projectName + "/" + packageName,
 			}
+		} else if lineNotEmpty && !foundImportLines && !packageLine &&
+			!strings.HasPrefix(line, "import") {
+			break
+		} else if foundImportLines && strings.HasPrefix(line, ")") {
+			foundImportLines = false
 		} else if singleImportLine {
 			parts := strings.Split(line, " ")
 			importedPackageName := parts[len(parts)-1]
 			if isImportProjectPackageLine(importedPackageName) {
-				importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
-				importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
 				depsPackages = append(depsPackages, &goPackage{
-					name: importedPackageName,
+					name: removeQuotesFromPkg(importedPackageName),
 				})
 			}
-		} else if foundImportLines && lineNotEmpty {
+		} else if foundImportLines && lineNotEmpty && isImportProjectPackageLine(line) {
 			// parse multi line imports
-			if isImportProjectPackageLine(line) {
-				importedPackageName := line
+			parts := strings.Split(line, " ")
+			importedPackageName := parts[len(parts)-1]
 
-				if strings.Contains(line, " ") {
-					// import alias
-					importedPackageName = strings.Split(line, " ")[1]
-				}
-				importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
-				importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
-				depsPackages = append(depsPackages, &goPackage{
-					name: importedPackageName,
-				})
-			}
-		} else if strings.HasPrefix(line, "import") {
-			// multi line imports
+			depsPackages = append(depsPackages, &goPackage{
+				name: removeQuotesFromPkg(importedPackageName),
+			})
+		} else if strings.HasPrefix(line, "import") && !singleImportLine {
+			// begin multi line imports
 			foundImportLines = true
 		}
 	}
