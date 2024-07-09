@@ -15,7 +15,7 @@ func getSamplePath(sampleNum string) (string, error) {
 	return path.Join(pwd, "test_samples/sample"+sampleNum), nil
 }
 
-func checkPkgDeps(t *testing.T, pkgDeps []*goPackage, expectedPkgDeps []string) bool {
+func checkPkgDeps(t *testing.T, pkgToCheck string, pkgDeps []*goPackage, expectedPkgDeps []string) bool {
 
 	set := make(map[string]struct{})
 
@@ -25,7 +25,11 @@ func checkPkgDeps(t *testing.T, pkgDeps []*goPackage, expectedPkgDeps []string) 
 
 	for _, item := range expectedPkgDeps {
 		if _, found := set[item]; !found {
-			t.Errorf("couldn't find package %s in pkg2 deps, pkg2 deps are %v", item, set)
+			t.Errorf("couldn't find package %s in %s deps, found deps are %v",
+				item,
+				pkgToCheck,
+				set,
+			)
 		}
 	}
 
@@ -54,6 +58,7 @@ func TestSample1(t *testing.T) {
 	pkg := "github.com/samples/sample1/pkg1"
 	checkPkgDeps(
 		t,
+		pkg,
 		pkgMap[pkg],
 		[]string{
 			"github.com/samples/sample1/pkg2",
@@ -62,12 +67,14 @@ func TestSample1(t *testing.T) {
 	pkg = "github.com/samples/sample1/pkg2"
 	checkPkgDeps(
 		t,
+		pkg,
 		pkgMap[pkg],
 		[]string{})
 
 	pkg = "github.com/samples/sample1/main"
 	checkPkgDeps(
 		t,
+		pkg,
 		pkgMap[pkg],
 		[]string{
 			"github.com/samples/sample1/pkg1",
