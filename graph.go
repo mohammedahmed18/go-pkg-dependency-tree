@@ -17,13 +17,4 @@ func generatePackagesGraph(gofiles []*goFile) {
 			}
 		}
 	}
-	for name, deps := range depsMap {
-		println("=================")
-		println(name)
-		for _, d := range deps {
-			println(d)
-		}
-		println("=================")
-
-	}
 }

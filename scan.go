@@ -81,7 +81,7 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 				importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
 				importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
 				depsPackages = append(depsPackages, &goPackage{
-					name: projectName + "/" + importedPackageName,
+					name: importedPackageName,
 				})
 			}
 		} else if foundImportLines && lineNotEmpty {
@@ -99,7 +99,7 @@ func parseGoFile(path string, projectName string) (*goFile, error) {
 					importedPackageName = strings.TrimPrefix(importedPackageName, "\"")
 					importedPackageName = strings.TrimSuffix(importedPackageName, "\"")
 					depsPackages = append(depsPackages, &goPackage{
-						name: projectName + "/" + importedPackageName,
+						name: importedPackageName,
 					})
 				}
 			}
